@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once "conexion.php";
+require_once __DIR__ . "/multiotp_helper.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $usuario = isset($_POST["usuario"]) ? trim($_POST["usuario"]) : "";
@@ -19,8 +19,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
-        $_SESSION["usuario"] = $usuario;
-        header("Location: dashboard.php");
+        if (!mfa_multiotp_available()) {
+            header("Location: login.php?error=3");
+            exit();
+        }
+
+        // Solo guardamos una sesion temporal para pasar al segundo factor.
+        mfa_start_pending_session($usuario);
+        header("Location: verify_otp.php");
         exit();
     }
 

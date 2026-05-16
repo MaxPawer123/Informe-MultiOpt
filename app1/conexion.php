@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "login_db";
+$db   = "multiotp";
 
 $conn = new mysqli($host, $user, $pass, $db);
 

@@ -1,11 +1,9 @@
 <?php
-session_start();
-require_once "conexion.php";
+require_once __DIR__ . "/multiotp_helper.php";
 
-if (!isset($_SESSION["usuario"])) {
-    header("Location: login.php");
-    exit();
-}
+// El modulo bancario tambien queda protegido por el segundo factor.
+mfa_require_authenticated();
+$usuarioSesion = mfa_current_user();
 
 $mensaje = "";
 $error = "";
@@ -102,7 +100,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $u2->execute();
 
                 $ins = $conn->prepare("INSERT INTO transferencias (cuenta_origen_id, cuenta_destino_id, monto, concepto, usuario_sistema) VALUES (?, ?, ?, ?, ?)");
-                $usuarioSistema = $_SESSION["usuario"];
+                $usuarioSistema = $usuarioSesion;
                 $ins->bind_param("iidss", $origenId, $destinoId, $monto, $concepto, $usuarioSistema);
                 $ins->execute();
 
@@ -270,6 +268,7 @@ if ($qHistorial) {
     <section class="card">
         <h1>Simulador de transferencias bancarias</h1>
         <p class="hint">Agrega cuentas, transfiere saldo entre ellas y revisa el registro historico.</p>
+        <p class="hint">Sesion activa: <strong><?php echo htmlspecialchars($usuarioSesion, ENT_QUOTES, 'UTF-8'); ?></strong></p>
         <div class="top-links">
             <a class="btn" href="dashboard.php">Volver al dashboard</a>
             <a class="btn" href="logout.php">Cerrar sesion</a>

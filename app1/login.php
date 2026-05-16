@@ -100,7 +100,7 @@
 
 <main class="card">
     <h1>Acceso al sistema</h1>
-    <p class="subtitle">Autenticacion por usuario y contrasena (sin 2FA)</p>
+    <p class="subtitle">Autenticacion por usuario, contrasena y verificacion OTP</p>
 
     <?php if (isset($_GET['error'])): ?>
         <div class="error">
@@ -110,6 +110,8 @@
                 echo 'Usuario o contrasena incorrectos.';
             } elseif ($error === '2') {
                 echo 'Completa todos los campos.';
+            } elseif ($error === '3') {
+                echo 'No se encontro multiOTP en C:\\multiotp\\multiotp.exe.';
             } else {
                 echo 'Error de autenticacion.';
             }
@@ -126,6 +128,10 @@
 
         <button type="submit">Ingresar</button>
     </form>
+
+    <p class="subtitle" style="margin-top:16px; margin-bottom:0;">
+        Si es tu primer acceso, despues de validar usuario y contrasena podras crear el QR en la pantalla de configuracion OTP.
+    </p>
 </main>
 
 </body>

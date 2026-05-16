@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/app1/multiotp_helper.php';
+
 header('Content-Type: application/json; charset=utf-8');
 
 $user = isset($_REQUEST['user']) ? trim((string) $_REQUEST['user']) : '';
@@ -14,7 +16,7 @@ if ($user === '' || $otp === '') {
 	exit;
 }
 
-$multiotpPath = __DIR__ . DIRECTORY_SEPARATOR . 'multiotp.exe';
+$multiotpPath = MULTIOTP_EXE;
 if (!file_exists($multiotpPath)) {
 	http_response_code(500);
 	echo json_encode([
@@ -25,16 +27,12 @@ if (!file_exists($multiotpPath)) {
 	exit;
 }
 
-$command = escapeshellarg($multiotpPath) . ' ' . escapeshellarg($user) . ' ' . escapeshellarg($otp);
-$output = [];
-$exitCode = 1;
-
-exec($command . ' 2>&1', $output, $exitCode);
+$result = mfa_validate_otp($user, $otp);
 
 echo json_encode([
-	'ok' => ($exitCode === 0),
-	'code' => $exitCode,
-	'message' => ($exitCode === 0) ? 'OTP valido' : 'OTP invalido o error de validacion',
-	'raw' => trim(implode("\n", $output))
+	'ok' => $result['ok'],
+	'code' => $result['exit_code'],
+	'message' => $result['ok'] ? 'OTP valido' : 'OTP invalido o error de validacion',
+	'raw' => $result['output']
 ]);
 ?>

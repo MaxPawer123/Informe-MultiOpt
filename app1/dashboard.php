@@ -1,10 +1,9 @@
 <?php
-session_start();
+require_once __DIR__ . "/multiotp_helper.php";
 
-if (!isset($_SESSION["usuario"])) {
-    header("Location: login.php");
-    exit();
-}
+// El dashboard solo debe abrirse despues de validar OTP.
+mfa_require_authenticated($_SESSION);
+$usuario = mfa_current_user($_SESSION);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -46,11 +45,13 @@ if (!isset($_SESSION["usuario"])) {
 </head>
 <body>
     <section class="panel">
-        <h1>Bienvenido, <?php echo htmlspecialchars($_SESSION["usuario"]); ?></h1>
-        <p>Inicio de sesion completado sin segundo factor.</p>
+        <h1>Bienvenido, <?php echo htmlspecialchars($usuario, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <p>Inicio de sesion completado con MFA/TOTP.</p>
         <a href="usuarios.php">Gestionar usuarios (ABM)</a>
         <br>
         <a href="transferencias.php">Modulo de transferencias bancarias</a>
+        <br>
+        <a href="setup_otp.php">Configurar o regenerar OTP</a>
         <br>
         <a href="logout.php">Cerrar sesion</a>
     </section>

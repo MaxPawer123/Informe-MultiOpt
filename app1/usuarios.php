@@ -1,11 +1,9 @@
 <?php
-session_start();
-require_once "conexion.php";
+require_once __DIR__ . "/multiotp_helper.php";
 
-if (!isset($_SESSION["usuario"])) {
-    header("Location: login.php");
-    exit();
-}
+// Esta pantalla requiere autenticacion completa con OTP.
+mfa_require_authenticated();
+$usuarioSesion = mfa_current_user();
 
 $accion = isset($_GET["accion"]) ? $_GET["accion"] : "";
 $mensaje = "";
@@ -85,7 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($usuarioEliminar === "") {
             $error = "No se indico el usuario a eliminar.";
-        } elseif ($usuarioEliminar === $_SESSION["usuario"]) {
+        } elseif ($usuarioEliminar === $usuarioSesion) {
             $error = "No puedes eliminar el usuario de la sesion actual.";
         } else {
             $stmt = $conn->prepare("DELETE FROM usuarios WHERE usuario = ?");
@@ -245,6 +243,7 @@ if ($q) {
     <section class="card">
         <h1>ABM de usuarios</h1>
         <p>Gestion simple de altas, bajas y modificaciones.</p>
+        <p>Usuario actual: <strong><?php echo htmlspecialchars($usuarioSesion, ENT_QUOTES, 'UTF-8'); ?></strong></p>
         <div class="top-links">
             <a class="btn btn-main" href="dashboard.php">Volver al dashboard</a>
             <a class="btn btn-main" href="logout.php">Cerrar sesion</a>
