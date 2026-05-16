@@ -1,8 +1,11 @@
 <?php
 require_once __DIR__ . "/multiotp_helper.php";
+require_once __DIR__ . "/auditoria.php";
 
 // Esta pantalla requiere autenticacion completa con OTP.
 if (!mfa_require_authenticated($_SESSION)) {
+    // Auditoria de intento no autorizado.
+    registrarAuditoria($conn, mfa_current_user($_SESSION), 'ACCESO_NO_AUTORIZADO', 'Intento en usuarios.php');
     header('Location: login.php');
     exit();
 }

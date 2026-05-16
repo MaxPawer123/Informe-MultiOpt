@@ -1,7 +1,10 @@
 <?php
 require_once __DIR__ . '/multiotp_helper.php';
+require_once __DIR__ . '/auditoria.php';
 
 if (!mfa_require_pending_or_authenticated($_SESSION)) {
+    // Auditoria de intento no autorizado.
+    registrarAuditoria($conn, mfa_current_user($_SESSION), 'ACCESO_NO_AUTORIZADO', 'Intento en verify_otp.php');
     header('Location: login.php');
     exit();
 }
@@ -20,18 +23,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($otp === '') {
         $error = 'Debes ingresar el codigo OTP de 6 digitos.';
+        // Auditoria de OTP vacio.
+        registrarAuditoria($conn, $usuario, 'OTP_INCORRECTO', 'OTP vacio');
     } elseif (!mfa_multiotp_available()) {
         $error = 'No se encontro multiOTP en C:\\multiotp\\multiotp.exe.';
+        // Auditoria de error de MFA.
+        registrarAuditoria($conn, $usuario, 'ERROR_IMPORTANTE', 'multiOTP no disponible en verificacion');
     } else {
         $check = mfa_validate_otp($usuario, $otp);
 
         if ($check['ok']) {
             mfa_finish_session($_SESSION, $usuario);
+            // Auditoria de OTP correcto.
+            registrarAuditoria($conn, $usuario, 'OTP_CORRECTO', 'Validacion OTP exitosa');
             header('Location: dashboard.php');
             exit();
         }
 
         $error = 'OTP incorrecto o no valido para este usuario.';
+        // Auditoria de OTP incorrecto.
+        $detalleOtp = $check['output'] !== '' ? $check['output'] : 'OTP incorrecto';
+        registrarAuditoria($conn, $usuario, 'OTP_INCORRECTO', $detalleOtp);
         if ($check['output'] !== '') {
             $mensaje = $check['output'];
         }

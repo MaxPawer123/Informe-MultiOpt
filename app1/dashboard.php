@@ -1,12 +1,17 @@
 <?php
 require_once __DIR__ . "/multiotp_helper.php";
+require_once __DIR__ . "/auditoria.php";
 
 // El dashboard solo debe abrirse despues de validar OTP.
 if (!mfa_require_authenticated($_SESSION)) {
+    // Auditoria de intento no autorizado.
+    registrarAuditoria($conn, mfa_current_user($_SESSION), 'ACCESO_NO_AUTORIZADO', 'Intento en dashboard.php');
     header('Location: login.php');
     exit();
 }
 $usuario = mfa_current_user($_SESSION);
+// Auditoria de acceso al dashboard.
+registrarAuditoria($conn, $usuario, 'ACCESO_DASHBOARD', 'Ingreso al dashboard');
 ?>
 <!DOCTYPE html>
 <html lang="es">

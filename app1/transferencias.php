@@ -1,8 +1,11 @@
 <?php
 require_once __DIR__ . "/multiotp_helper.php";
+require_once __DIR__ . "/auditoria.php";
 
 // El modulo bancario tambien queda protegido por el segundo factor.
 if (!mfa_require_authenticated($_SESSION)) {
+    // Auditoria de intento no autorizado.
+    registrarAuditoria($conn, mfa_current_user($_SESSION), 'ACCESO_NO_AUTORIZADO', 'Intento en transferencias.php');
     header('Location: login.php');
     exit();
 }
@@ -109,9 +112,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $conn->commit();
                 $mensaje = "Transferencia realizada correctamente.";
+                // Auditoria de transferencia exitosa.
+                $detalleOk = "origen_id={$origenId}; destino_id={$destinoId}; monto={$monto}; concepto={$concepto}";
+                registrarAuditoria($conn, $usuarioSesion, 'TRANSFERENCIA_OK', $detalleOk);
             } catch (Exception $e) {
                 $conn->rollback();
                 $error = $e->getMessage();
+                // Auditoria de transferencia con error.
+                $detalleErr = "origen_id={$origenId}; destino_id={$destinoId}; monto={$monto}; error={$error}";
+                registrarAuditoria($conn, $usuarioSesion, 'TRANSFERENCIA_ERROR', $detalleErr);
             }
         }
     }
