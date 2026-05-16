@@ -1,9 +1,12 @@
 <?php
 require_once __DIR__ . '/multiotp_helper.php';
 
-call_user_func('mfa_require_pending_or_authenticated');
+if (!mfa_require_pending_or_authenticated($_SESSION)) {
+    header('Location: login.php');
+    exit();
+}
 
-$usuario = call_user_func('mfa_current_user');
+$usuario = mfa_current_user($_SESSION);
 $error = '';
 $mensaje = '';
 $qrDataUri = '';
@@ -11,10 +14,10 @@ $createResult = null;
 $qrResult = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!call_user_func('mfa_multiotp_available')) {
+    if (!mfa_multiotp_available()) {
         $error = 'No se encontro multiOTP en C:\\multiotp\\multiotp.exe.';
     } else {
-        $setup = call_user_func('mfa_create_token_and_qr', $usuario);
+        $setup = mfa_create_token_and_qr($usuario);
         $createResult = $setup['create_result'];
         $qrResult = $setup['qr_result'];
         $qrDataUri = $setup['qr_data_uri'];

@@ -2,7 +2,10 @@
 require_once __DIR__ . "/multiotp_helper.php";
 
 // El dashboard solo debe abrirse despues de validar OTP.
-mfa_require_authenticated($_SESSION);
+if (!mfa_require_authenticated($_SESSION)) {
+    header('Location: login.php');
+    exit();
+}
 $usuario = mfa_current_user($_SESSION);
 ?>
 <!DOCTYPE html>

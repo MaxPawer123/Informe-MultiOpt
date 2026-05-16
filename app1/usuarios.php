@@ -2,8 +2,11 @@
 require_once __DIR__ . "/multiotp_helper.php";
 
 // Esta pantalla requiere autenticacion completa con OTP.
-mfa_require_authenticated();
-$usuarioSesion = mfa_current_user();
+if (!mfa_require_authenticated($_SESSION)) {
+    header('Location: login.php');
+    exit();
+}
+$usuarioSesion = mfa_current_user($_SESSION);
 
 $accion = isset($_GET["accion"]) ? $_GET["accion"] : "";
 $mensaje = "";

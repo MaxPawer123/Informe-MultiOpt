@@ -17,65 +17,59 @@ function mfa_username_normalize($username)
     return trim((string) $username);
 }
 
-function mfa_current_user()
+function mfa_current_user(array $session)
 {
-    if (isset($_SESSION['mfa_authenticated']) && $_SESSION['mfa_authenticated'] === true && !empty($_SESSION['mfa_user'])) {
-        return (string) $_SESSION['mfa_user'];
+    if (isset($session['mfa_authenticated']) && $session['mfa_authenticated'] === true && !empty($session['mfa_user'])) {
+        return (string) $session['mfa_user'];
     }
 
-    if (!empty($_SESSION['mfa_pending_user'])) {
-        return (string) $_SESSION['mfa_pending_user'];
+    if (!empty($session['mfa_pending_user'])) {
+        return (string) $session['mfa_pending_user'];
     }
 
     return '';
 }
 
-function mfa_is_authenticated()
+function mfa_is_authenticated(array $session)
 {
-    return isset($_SESSION['mfa_authenticated']) && $_SESSION['mfa_authenticated'] === true && !empty($_SESSION['mfa_user']);
+    return isset($session['mfa_authenticated']) && $session['mfa_authenticated'] === true && !empty($session['mfa_user']);
 }
 
-function mfa_require_authenticated()
+function mfa_require_authenticated(array $session)
 {
-    if (!mfa_is_authenticated()) {
-        header('Location: login.php');
-        exit();
-    }
+    return mfa_is_authenticated($session);
 }
 
-function mfa_require_pending_or_authenticated()
+function mfa_require_pending_or_authenticated(array $session)
 {
-    if (!mfa_is_authenticated() && empty($_SESSION['mfa_pending_user'])) {
-        header('Location: login.php');
-        exit();
-    }
+    return mfa_is_authenticated($session) || !empty($session['mfa_pending_user']);
 }
 
-function mfa_start_pending_session($username)
+function mfa_start_pending_session(array &$session, $username)
 {
     session_regenerate_id(true);
-    $_SESSION['mfa_pending_user'] = mfa_username_normalize($username);
-    $_SESSION['mfa_pending_started_at'] = time();
-    unset($_SESSION['mfa_authenticated'], $_SESSION['mfa_user'], $_SESSION['mfa_authenticated_at']);
+    $session['mfa_pending_user'] = mfa_username_normalize($username);
+    $session['mfa_pending_started_at'] = time();
+    unset($session['mfa_authenticated'], $session['mfa_user'], $session['mfa_authenticated_at']);
 }
 
-function mfa_finish_session($username)
+function mfa_finish_session(array &$session, $username)
 {
     session_regenerate_id(true);
-    $_SESSION['mfa_authenticated'] = true;
-    $_SESSION['mfa_user'] = mfa_username_normalize($username);
-    $_SESSION['mfa_authenticated_at'] = time();
-    unset($_SESSION['mfa_pending_user'], $_SESSION['mfa_pending_started_at']);
+    $session['mfa_authenticated'] = true;
+    $session['mfa_user'] = mfa_username_normalize($username);
+    $session['mfa_authenticated_at'] = time();
+    unset($session['mfa_pending_user'], $session['mfa_pending_started_at']);
 }
 
-function mfa_clear_session()
+function mfa_clear_session(array &$session)
 {
     unset(
-        $_SESSION['mfa_pending_user'],
-        $_SESSION['mfa_pending_started_at'],
-        $_SESSION['mfa_authenticated'],
-        $_SESSION['mfa_user'],
-        $_SESSION['mfa_authenticated_at']
+        $session['mfa_pending_user'],
+        $session['mfa_pending_started_at'],
+        $session['mfa_authenticated'],
+        $session['mfa_user'],
+        $session['mfa_authenticated_at']
     );
 }
 
@@ -134,7 +128,7 @@ function mfa_create_token_and_qr($username)
 
     $qrPath = rtrim(sys_get_temp_dir(), "\\/") . DIRECTORY_SEPARATOR . 'multiotp_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.png';
     if (is_file($qrPath)) {
-        @unlink($qrPath);
+        unlink($qrPath);
     }
 
     $qrResult = mfa_run_multiotp(['-qrcode', $username, $qrPath]);

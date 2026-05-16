@@ -2,8 +2,11 @@
 require_once __DIR__ . "/multiotp_helper.php";
 
 // El modulo bancario tambien queda protegido por el segundo factor.
-mfa_require_authenticated();
-$usuarioSesion = mfa_current_user();
+if (!mfa_require_authenticated($_SESSION)) {
+    header('Location: login.php');
+    exit();
+}
+$usuarioSesion = mfa_current_user($_SESSION);
 
 $mensaje = "";
 $error = "";

@@ -1,13 +1,16 @@
 <?php
 require_once __DIR__ . '/multiotp_helper.php';
 
-mfa_require_pending_or_authenticated();
+if (!mfa_require_pending_or_authenticated($_SESSION)) {
+    header('Location: login.php');
+    exit();
+}
 
 $mensaje = '';
 $error = '';
-$usuario = mfa_current_user();
+$usuario = mfa_current_user($_SESSION);
 
-if (mfa_is_authenticated()) {
+if (mfa_is_authenticated($_SESSION)) {
     header('Location: dashboard.php');
     exit();
 }
@@ -23,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $check = mfa_validate_otp($usuario, $otp);
 
         if ($check['ok']) {
-            mfa_finish_session($usuario);
+            mfa_finish_session($_SESSION, $usuario);
             header('Location: dashboard.php');
             exit();
         }

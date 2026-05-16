@@ -25,7 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         // Solo guardamos una sesion temporal para pasar al segundo factor.
-        mfa_start_pending_session($usuario);
+        mfa_start_pending_session($_SESSION, $usuario);
         header("Location: verify_otp.php");
         exit();
     }
