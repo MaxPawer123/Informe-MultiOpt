@@ -14,6 +14,9 @@ $usuarioSesion = mfa_current_user($_SESSION);
 $accion = isset($_GET["accion"]) ? $_GET["accion"] : "";
 $mensaje = "";
 $error = "";
+$qrDataUri = '';
+$createResult = null;
+$qrResult = null;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $tipo = isset($_POST["tipo"]) ? $_POST["tipo"] : "";
@@ -99,6 +102,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $mensaje = "Usuario eliminado correctamente.";
             } else {
                 $error = "No se pudo eliminar el usuario.";
+            }
+        }
+    }
+
+    if ($tipo === "generar_2fa") {
+        $usuarioGenerar = isset($_POST["usuario"]) ? trim($_POST["usuario"]) : "";
+
+        if ($usuarioGenerar === "") {
+            $error = "No se indico el usuario para generar 2FA.";
+        } else {
+            if (!mfa_multiotp_available()) {
+                $error = 'multiOTP no esta disponible en el servidor.';
+            } else {
+                $setup = mfa_create_token_and_qr($usuarioGenerar);
+                $createResult = $setup['create_result'];
+                $qrResult = $setup['qr_result'];
+                $qrDataUri = $setup['qr_data_uri'];
+
+                if ($setup['ok'] && $qrDataUri !== '') {
+                    $mensaje = "Token TOTP generado para usuario: " . $usuarioGenerar;
+                } elseif ($setup['ok']) {
+                    $mensaje = "Token creado, pero no se genero la imagen QR.";
+                } else {
+                    $error = "No se pudo crear el token OTP para el usuario.";
+                }
             }
         }
     }
@@ -212,6 +240,8 @@ if ($q) {
 
         .btn-main { background: var(--accent); }
         .btn-main:hover { background: var(--accent-dark); }
+        .btn-2fa { background: #0b7285; }
+        .btn-2fa:hover { background: #075a66; }
         .btn-danger { background: var(--danger); }
         .btn-danger:hover { background: var(--danger-dark); }
 
@@ -329,6 +359,11 @@ if ($q) {
                             <td><?php echo htmlspecialchars($u); ?></td>
                             <td class="actions">
                                 <a class="btn btn-main" href="usuarios.php?accion=editar&usuario=<?php echo urlencode($u); ?>">Editar</a>
+                                <form class="inline" method="POST" action="usuarios.php" onsubmit="return confirm('Generar/Regenerar 2FA para este usuario?');">
+                                    <input type="hidden" name="tipo" value="generar_2fa">
+                                    <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u); ?>">
+                                    <button class="btn btn-2fa" type="submit">2FA</button>
+                                </form>
                                 <form class="inline" method="POST" action="usuarios.php" onsubmit="return confirm('Seguro que deseas eliminar este usuario?');">
                                     <input type="hidden" name="tipo" value="eliminar">
                                     <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u); ?>">
@@ -341,6 +376,32 @@ if ($q) {
             </table>
         <?php endif; ?>
     </section>
+
+    <?php if ($createResult !== null || $qrDataUri !== ''): ?>
+        <section class="card">
+            <h2>Resultado 2FA</h2>
+
+            <?php if ($mensaje !== ""): ?>
+                <div class="msg"><?php echo htmlspecialchars($mensaje); ?></div>
+            <?php endif; ?>
+
+            <?php if ($error !== ""): ?>
+                <div class="err"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+
+            <?php if ($createResult !== null): ?>
+                <h3>Salida multiOTP</h3>
+                <pre style="background:#f8f9fb;border-radius:8px;padding:10px;border:1px solid var(--border);white-space:pre-wrap;"><?php echo htmlspecialchars($createResult['output'] . "\n" . ($qrResult['output'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></pre>
+            <?php endif; ?>
+
+            <?php if ($qrDataUri !== ''): ?>
+                <h3>QR</h3>
+                <div style="padding:12px;background:#fff;border-radius:8px;display:inline-block;border:1px solid var(--border);">
+                    <img src="<?php echo htmlspecialchars($qrDataUri, ENT_QUOTES, 'UTF-8'); ?>" alt="QR 2FA" style="max-width:220px;display:block;">
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 </div>
 </body>
 </html>

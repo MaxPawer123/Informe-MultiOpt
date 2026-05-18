@@ -12,7 +12,7 @@ if (!mfa_require_authenticated($_SESSION)) {
 $usuario = mfa_current_user($_SESSION);
 registrarAuditoria($conn, $usuario, 'ACCESO_LOGS', 'Consulta de auditoria');
 
-// Consulta de auditoria con prepared statement.
+// Consulta de auditoria de la auditoria, limitando a los ultimos 500 registros para evitar sobrecarga.
 $registros = [];
 $limit = 500;
 $stmt = $conn->prepare('SELECT id, usuario, accion, detalle, ip, fecha FROM auditoria ORDER BY fecha DESC LIMIT ?');
