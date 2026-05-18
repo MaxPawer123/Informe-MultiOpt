@@ -151,112 +151,153 @@ if ($q) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ABM de Usuarios</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #f3f7fb;
+            --bg: #f0f4f8;
             --card: #ffffff;
             --text: #1b2a41;
-            --muted: #5f6c80;
+            --muted: #64748b;
             --accent: #0f766e;
             --accent-dark: #115e59;
+            --accent-light: #ccfbf1;
             --danger: #b91c1c;
             --danger-dark: #991b1b;
-            --border: #d9e2ec;
-            --ok-bg: #dcfce7;
+            --danger-light: #fee2e2;
+            --border: #e2e8f0;
+            --ok-bg: #f0fdf4;
             --ok-text: #166534;
-            --err-bg: #fee2e2;
+            --err-bg: #fef2f2;
             --err-text: #991b1b;
+            --tfa-bg: #0e7490;
+            --tfa-dark: #0c6480;
+            --shadow: 0 4px 24px rgba(15, 118, 110, 0.08);
         }
 
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            margin: 0;
             min-height: 100vh;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             color: var(--text);
-            background: radial-gradient(circle at top right, #dff3ef 0%, var(--bg) 45%);
-            padding: 20px;
+            background: linear-gradient(135deg, #e0f7f4 0%, #f0f4f8 50%, #eef2f7 100%);
+            padding: 24px 16px;
         }
 
         .wrap {
-            max-width: 920px;
+            max-width: 960px;
             margin: 0 auto;
             display: grid;
-            gap: 16px;
+            gap: 20px;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 20px;
-            box-shadow: 0 12px 30px rgba(27, 42, 65, 0.08);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            transition: box-shadow 0.2s;
         }
 
-        h1, h2 { margin: 0 0 12px; }
+        h1 { font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+        h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 14px; }
 
         .msg, .err {
-            padding: 10px 12px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            font-size: 0.93rem;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            font-size: 0.92rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-
-        .msg { background: var(--ok-bg); color: var(--ok-text); }
-        .err { background: var(--err-bg); color: var(--err-text); }
+        .msg { background: var(--ok-bg); color: var(--ok-text); border: 1px solid #bbf7d0; }
+        .err { background: var(--err-bg); color: var(--err-text); border: 1px solid #fecaca; }
 
         .grid {
             display: grid;
-            gap: 10px;
+            gap: 14px;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 6px;
             font-weight: 600;
-            font-size: 0.92rem;
+            font-size: 0.88rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
 
         input {
             width: 100%;
-            padding: 10px 12px;
+            padding: 10px 14px;
             border-radius: 10px;
-            border: 1px solid var(--border);
+            border: 1.5px solid var(--border);
             font-size: 0.95rem;
+            font-family: inherit;
+            color: var(--text);
+            background: #f8fafc;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(15,118,110,0.12);
+            background: #fff;
         }
 
         .btn {
             border: none;
             border-radius: 10px;
-            padding: 10px 12px;
+            padding: 10px 18px;
             color: #fff;
             cursor: pointer;
             font-weight: 700;
+            font-size: 0.9rem;
+            font-family: inherit;
             text-decoration: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
         }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+        .btn:active { transform: translateY(0); }
 
-        .btn-main { background: var(--accent); }
-        .btn-main:hover { background: var(--accent-dark); }
-        .btn-2fa { background: #0b7285; }
-        .btn-2fa:hover { background: #075a66; }
-        .btn-danger { background: var(--danger); }
-        .btn-danger:hover { background: var(--danger-dark); }
+        .btn-main { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); }
+        .btn-main:hover { background: linear-gradient(135deg, var(--accent-dark), #0d4d48); }
+        .btn-2fa { background: linear-gradient(135deg, #0891b2, #0e7490); }
+        .btn-2fa:hover { background: linear-gradient(135deg, #0e7490, #0c5c70); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444, var(--danger)); }
+        .btn-danger:hover { background: linear-gradient(135deg, var(--danger), var(--danger-dark)); }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 8px;
         }
-
-        th, td {
-            text-align: left;
-            padding: 10px;
+        thead th {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            padding: 10px 12px;
+            border-bottom: 2px solid var(--border);
+        }
+        tbody td {
+            padding: 14px 12px;
             border-bottom: 1px solid var(--border);
             vertical-align: middle;
+            font-size: 0.95rem;
         }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover { background: #f8fafc; }
 
         .actions {
             display: flex;
@@ -268,10 +309,182 @@ if ($q) {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-top: 10px;
+            margin-top: 14px;
         }
 
         form.inline { display: inline; }
+
+        /* ── 2FA Result Card ── */
+        .result-2fa-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .result-2fa-header .icon-2fa {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #0891b2, #0f766e);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+        .result-2fa-grid {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 20px;
+            align-items: start;
+        }
+        .qr-container {
+            background: linear-gradient(135deg, #f0fdf9, #e0f2fe);
+            border: 2px dashed #a7f3d0;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            min-width: 200px;
+        }
+        .qr-container img {
+            width: 180px; height: 180px;
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        .qr-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .output-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .code-block {
+            background: #0f172a;
+            color: #7dd3fc;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.83rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border: 1px solid #1e293b;
+        }
+
+        /* ── Custom Modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal-box {
+            background: #fff;
+            border-radius: 22px;
+            padding: 32px 28px 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.2);
+            transform: scale(0.88) translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease;
+            opacity: 0;
+            position: relative;
+        }
+        .modal-overlay.active .modal-box {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+        .modal-icon {
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #0891b2, #0f766e);
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem;
+            margin: 0 auto 16px;
+        }
+        .modal-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .modal-desc {
+            font-size: 0.9rem;
+            color: var(--muted);
+            text-align: center;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .modal-user-badge {
+            display: inline-block;
+            background: var(--accent-light);
+            color: var(--accent-dark);
+            font-weight: 700;
+            font-size: 0.88rem;
+            padding: 3px 12px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal-cancel {
+            background: #f1f5f9;
+            color: var(--text);
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .modal-cancel:hover { background: #e2e8f0; }
+        .modal-confirm {
+            background: linear-gradient(135deg, #0891b2, #0f766e);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 22px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.15s;
+        }
+        .modal-confirm:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        @media (max-width: 600px) {
+            .result-2fa-grid { grid-template-columns: 1fr; }
+            .qr-container { min-width: unset; }
+        }
     </style>
 </head>
 <body>
@@ -359,10 +572,10 @@ if ($q) {
                             <td><?php echo htmlspecialchars($u); ?></td>
                             <td class="actions">
                                 <a class="btn btn-main" href="usuarios.php?accion=editar&usuario=<?php echo urlencode($u); ?>">Editar</a>
-                                <form class="inline" method="POST" action="usuarios.php" onsubmit="return confirm('Generar/Regenerar 2FA para este usuario?');">
+                                <form class="inline tfa-form" method="POST" action="usuarios.php" data-usuario="<?php echo htmlspecialchars($u, ENT_QUOTES, 'UTF-8'); ?>">
                                     <input type="hidden" name="tipo" value="generar_2fa">
-                                    <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u); ?>">
-                                    <button class="btn btn-2fa" type="submit">2FA</button>
+                                    <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <button class="btn btn-2fa" type="button" onclick="abrirModal2FA(this)">🔐 2FA</button>
                                 </form>
                                 <form class="inline" method="POST" action="usuarios.php" onsubmit="return confirm('Seguro que deseas eliminar este usuario?');">
                                     <input type="hidden" name="tipo" value="eliminar">
@@ -379,29 +592,91 @@ if ($q) {
 
     <?php if ($createResult !== null || $qrDataUri !== ''): ?>
         <section class="card">
-            <h2>Resultado 2FA</h2>
+            <div class="result-2fa-header">
+                <div class="icon-2fa">🔐</div>
+                <div>
+                    <h2 style="margin-bottom:2px;">Resultado 2FA</h2>
+                    <span style="font-size:0.85rem;color:var(--muted);">Autenticación de dos factores</span>
+                </div>
+            </div>
 
             <?php if ($mensaje !== ""): ?>
-                <div class="msg"><?php echo htmlspecialchars($mensaje); ?></div>
+                <div class="msg">✅ <?php echo htmlspecialchars($mensaje); ?></div>
             <?php endif; ?>
 
             <?php if ($error !== ""): ?>
-                <div class="err"><?php echo htmlspecialchars($error); ?></div>
+                <div class="err">⚠️ <?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
 
-            <?php if ($createResult !== null): ?>
-                <h3>Salida multiOTP</h3>
-                <pre style="background:#f8f9fb;border-radius:8px;padding:10px;border:1px solid var(--border);white-space:pre-wrap;"><?php echo htmlspecialchars($createResult['output'] . "\n" . ($qrResult['output'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></pre>
-            <?php endif; ?>
-
-            <?php if ($qrDataUri !== ''): ?>
-                <h3>QR</h3>
-                <div style="padding:12px;background:#fff;border-radius:8px;display:inline-block;border:1px solid var(--border);">
-                    <img src="<?php echo htmlspecialchars($qrDataUri, ENT_QUOTES, 'UTF-8'); ?>" alt="QR 2FA" style="max-width:220px;display:block;">
+            <div class="result-2fa-grid">
+                <div>
+                    <?php if ($createResult !== null): ?>
+                        <p class="output-label">Salida multiOTP</p>
+                        <div class="code-block"><?php echo htmlspecialchars(trim($createResult['output'] . "\n" . ($qrResult['output'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></div>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
+
+                <?php if ($qrDataUri !== ''): ?>
+                <div class="qr-container">
+                    <p class="qr-label">📱 Escanea con tu app</p>
+                    <img src="<?php echo htmlspecialchars($qrDataUri, ENT_QUOTES, 'UTF-8'); ?>" alt="QR 2FA">
+                    <p style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Google Authenticator · Microsoft Authenticator · FreeOTP</p>
+                </div>
+                <?php endif; ?>
+            </div>
         </section>
     <?php endif; ?>
 </div>
+
+<!-- Modal 2FA personalizado -->
+<div class="modal-overlay" id="modal2fa" role="dialog" aria-modal="true" aria-labelledby="modal2faTitle">
+    <div class="modal-box">
+        <div class="modal-icon">🔐</div>
+        <div class="modal-title" id="modal2faTitle">Generar / Regenerar 2FA</div>
+        <div class="modal-desc">Se creará o sobreescribirá el token TOTP para el usuario:</div>
+        <div style="text-align:center;">
+            <span class="modal-user-badge" id="modal2faUser"></span>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-cancel" id="modal2faCancel" onclick="cerrarModal2FA()">Cancelar</button>
+            <button class="modal-confirm" id="modal2faConfirm" onclick="confirmarModal2FA()">✅ Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let _pendingForm2FA = null;
+
+    function abrirModal2FA(btn) {
+        const form = btn.closest('.tfa-form');
+        _pendingForm2FA = form;
+        const usuario = form.dataset.usuario || '';
+        document.getElementById('modal2faUser').textContent = usuario;
+        const overlay = document.getElementById('modal2fa');
+        overlay.classList.add('active');
+        document.getElementById('modal2faConfirm').focus();
+    }
+
+    function cerrarModal2FA() {
+        const overlay = document.getElementById('modal2fa');
+        overlay.classList.remove('active');
+        _pendingForm2FA = null;
+    }
+
+    function confirmarModal2FA() {
+        if (_pendingForm2FA) {
+            _pendingForm2FA.submit();
+        }
+        cerrarModal2FA();
+    }
+
+    // Cerrar con Escape o click fuera
+    document.getElementById('modal2fa').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModal2FA();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cerrarModal2FA();
+    });
+</script>
 </body>
 </html>
