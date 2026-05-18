@@ -53,8 +53,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $usuarioOriginal = isset($_POST["usuario_original"]) ? trim($_POST["usuario_original"]) : "";
         $usuarioNuevo = isset($_POST["usuario"]) ? trim($_POST["usuario"]) : "";
         $passwordNueva = isset($_POST["password"]) ? $_POST["password"] : "";
+        $otpConfirm = isset($_POST["otp_confirm"]) ? trim($_POST["otp_confirm"]) : "";
 
-        if ($usuarioOriginal === "" || $usuarioNuevo === "") {
+        if ($otpConfirm === "") {
+            $error = "Debes ingresar tu codigo OTP para confirmar la edicion.";
+        } elseif (!mfa_validate_otp($usuarioSesion, $otpConfirm)['ok']) {
+            $error = "Codigo OTP incorrecto. Operacion cancelada.";
+            registrarAuditoria($conn, $usuarioSesion, 'OTP_INCORRECTO', 'OTP incorrecto al editar usuario');
+        } elseif ($usuarioOriginal === "" || $usuarioNuevo === "") {
             $error = "Datos incompletos para editar el usuario.";
         } else {
             if ($usuarioOriginal !== $usuarioNuevo) {
@@ -89,8 +95,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($tipo === "eliminar") {
         $usuarioEliminar = isset($_POST["usuario"]) ? trim($_POST["usuario"]) : "";
+        $otpConfirm = isset($_POST["otp_confirm"]) ? trim($_POST["otp_confirm"]) : "";
 
-        if ($usuarioEliminar === "") {
+        if ($otpConfirm === "") {
+            $error = "Debes ingresar tu codigo OTP para confirmar la eliminacion.";
+        } elseif (!mfa_validate_otp($usuarioSesion, $otpConfirm)['ok']) {
+            $error = "Codigo OTP incorrecto. Operacion cancelada.";
+            registrarAuditoria($conn, $usuarioSesion, 'OTP_INCORRECTO', 'OTP incorrecto al eliminar usuario');
+        } elseif ($usuarioEliminar === "") {
             $error = "No se indico el usuario a eliminar.";
         } elseif ($usuarioEliminar === $usuarioSesion) {
             $error = "No puedes eliminar el usuario de la sesion actual.";
@@ -527,7 +539,7 @@ if ($q) {
                 </div>
 
                 <div class="top-links">
-                    <button class="btn btn-main" type="submit">Guardar cambios</button>
+                    <button class="btn btn-main btn-otp-action" type="button" data-accion="editar" data-usuario="<?php echo htmlspecialchars($usuarioEdicion, ENT_QUOTES, 'UTF-8'); ?>">🔒 Guardar cambios</button>
                     <a class="btn btn-main" href="usuarios.php">Cancelar</a>
                 </div>
             </form>
@@ -577,10 +589,10 @@ if ($q) {
                                     <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u, ENT_QUOTES, 'UTF-8'); ?>">
                                     <button class="btn btn-2fa" type="button" onclick="abrirModal2FA(this)">🔐 2FA</button>
                                 </form>
-                                <form class="inline" method="POST" action="usuarios.php" onsubmit="return confirm('Seguro que deseas eliminar este usuario?');">
+                                <form class="inline delete-form" method="POST" action="usuarios.php">
                                     <input type="hidden" name="tipo" value="eliminar">
-                                    <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u); ?>">
-                                    <button class="btn btn-danger" type="submit">Eliminar</button>
+                                    <input type="hidden" name="usuario" value="<?php echo htmlspecialchars($u, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <button class="btn btn-danger btn-otp-action" type="button" data-accion="eliminar" data-usuario="<?php echo htmlspecialchars($u, ENT_QUOTES, 'UTF-8'); ?>">Eliminar</button>
                                 </form>
                             </td>
                         </tr>
@@ -644,7 +656,29 @@ if ($q) {
     </div>
 </div>
 
+<!-- Modal OTP para confirmar editar/eliminar -->
+<div class="modal-overlay" id="modalOTP" role="dialog" aria-modal="true" aria-labelledby="modalOTPTitle">
+    <div class="modal-box">
+        <div class="modal-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);">🔒</div>
+        <div class="modal-title" id="modalOTPTitle">Verificación OTP requerida</div>
+        <div class="modal-desc" id="modalOTPDesc">Ingresa tu código OTP para confirmar esta acción.</div>
+        <div style="text-align:center;">
+            <span class="modal-user-badge" id="modalOTPUser"></span>
+        </div>
+        <div style="margin:16px 0;">
+            <label for="modalOTPInput" style="display:block;margin-bottom:6px;font-weight:600;font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">Código OTP (6 dígitos)</label>
+            <input type="text" id="modalOTPInput" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456" autocomplete="off" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--border);font-size:1.2rem;font-family:inherit;text-align:center;letter-spacing:0.4em;font-weight:700;transition:border-color 0.2s;background:#f8fafc;">
+        </div>
+        <div id="modalOTPError" style="display:none;background:var(--err-bg);color:var(--err-text);padding:8px 12px;border-radius:10px;font-size:0.85rem;margin-bottom:12px;text-align:center;"></div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="cerrarModalOTP()">Cancelar</button>
+            <button class="modal-confirm" style="background:linear-gradient(135deg,#f59e0b,#d97706);" onclick="confirmarModalOTP()">🔑 Confirmar</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    // ── Modal 2FA (generar token) ──
     let _pendingForm2FA = null;
 
     function abrirModal2FA(btn) {
@@ -652,30 +686,103 @@ if ($q) {
         _pendingForm2FA = form;
         const usuario = form.dataset.usuario || '';
         document.getElementById('modal2faUser').textContent = usuario;
-        const overlay = document.getElementById('modal2fa');
-        overlay.classList.add('active');
+        document.getElementById('modal2fa').classList.add('active');
         document.getElementById('modal2faConfirm').focus();
     }
 
     function cerrarModal2FA() {
-        const overlay = document.getElementById('modal2fa');
-        overlay.classList.remove('active');
+        document.getElementById('modal2fa').classList.remove('active');
         _pendingForm2FA = null;
     }
 
     function confirmarModal2FA() {
-        if (_pendingForm2FA) {
-            _pendingForm2FA.submit();
-        }
+        if (_pendingForm2FA) _pendingForm2FA.submit();
         cerrarModal2FA();
     }
 
-    // Cerrar con Escape o click fuera
     document.getElementById('modal2fa').addEventListener('click', function(e) {
         if (e.target === this) cerrarModal2FA();
     });
+
+    // ── Modal OTP (confirmar editar/eliminar) ──
+    let _pendingFormOTP = null;
+
+    function abrirModalOTP(form, accion, usuario) {
+        _pendingFormOTP = form;
+        const desc = document.getElementById('modalOTPDesc');
+        const input = document.getElementById('modalOTPInput');
+        const errDiv = document.getElementById('modalOTPError');
+
+        document.getElementById('modalOTPUser').textContent = usuario;
+        errDiv.style.display = 'none';
+        input.style.borderColor = 'var(--border)';
+        input.value = '';
+
+        if (accion === 'eliminar') {
+            desc.textContent = 'Ingresa tu código OTP para confirmar la eliminación del usuario:';
+            document.getElementById('modalOTPTitle').textContent = 'Confirmar eliminación';
+        } else {
+            desc.textContent = 'Ingresa tu código OTP para confirmar la edición del usuario:';
+            document.getElementById('modalOTPTitle').textContent = 'Confirmar edición';
+        }
+
+        document.getElementById('modalOTP').classList.add('active');
+        setTimeout(function() { input.focus(); }, 150);
+    }
+
+    function cerrarModalOTP() {
+        document.getElementById('modalOTP').classList.remove('active');
+        _pendingFormOTP = null;
+    }
+
+    function confirmarModalOTP() {
+        const input = document.getElementById('modalOTPInput');
+        const otp = input.value.trim();
+        const errDiv = document.getElementById('modalOTPError');
+
+        if (otp === '' || !/^\d{6}$/.test(otp)) {
+            input.style.borderColor = '#ef4444';
+            errDiv.textContent = 'Ingresa un código válido de 6 dígitos.';
+            errDiv.style.display = 'block';
+            input.focus();
+            return;
+        }
+
+        if (_pendingFormOTP) {
+            let otpField = _pendingFormOTP.querySelector('input[name="otp_confirm"]');
+            if (!otpField) {
+                otpField = document.createElement('input');
+                otpField.type = 'hidden';
+                otpField.name = 'otp_confirm';
+                _pendingFormOTP.appendChild(otpField);
+            }
+            otpField.value = otp;
+            _pendingFormOTP.submit();
+        }
+        cerrarModalOTP();
+    }
+
+    document.getElementById('modalOTP').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModalOTP();
+    });
+
+    document.getElementById('modalOTPInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); confirmarModalOTP(); }
+    });
+
+    // Conectar botones .btn-otp-action al modal OTP
+    document.querySelectorAll('.btn-otp-action').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var form = this.closest('form');
+            var accion = this.getAttribute('data-accion');
+            var usuario = this.getAttribute('data-usuario');
+            abrirModalOTP(form, accion, usuario);
+        });
+    });
+
+    // Escape cierra cualquier modal abierto
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') cerrarModal2FA();
+        if (e.key === 'Escape') { cerrarModal2FA(); cerrarModalOTP(); }
     });
 </script>
 </body>

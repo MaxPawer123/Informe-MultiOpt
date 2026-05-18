@@ -16,11 +16,21 @@ $error = "";
 
 $conn->query("CREATE TABLE IF NOT EXISTS cuentas_bancarias (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    cuenta VARCHAR(50) NOT NULL UNIQUE,
+    cuenta VARCHAR(50) NOT NULL,
     titular VARCHAR(100) NOT NULL,
     saldo DECIMAL(12,2) NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    usuario VARCHAR(100) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_cuenta_usuario (cuenta, usuario)
 )");
+
+// Agregar columna usuario si la tabla ya existia sin ella.
+$colCheck = $conn->query("SHOW COLUMNS FROM cuentas_bancarias LIKE 'usuario'");
+if ($colCheck && $colCheck->num_rows === 0) {
+    $conn->query("ALTER TABLE cuentas_bancarias ADD COLUMN usuario VARCHAR(100) NOT NULL DEFAULT '' AFTER saldo");
+    // Quitar el UNIQUE original de cuenta si existe, para permitir misma cuenta en distintos usuarios.
+    $conn->query("ALTER TABLE cuentas_bancarias DROP INDEX cuenta");
+}
 
 $conn->query("CREATE TABLE IF NOT EXISTS transferencias (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -41,14 +51,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $cuenta = isset($_POST["cuenta"]) ? trim($_POST["cuenta"]) : "";
         $titular = isset($_POST["titular"]) ? trim($_POST["titular"]) : "";
         $saldoInicial = isset($_POST["saldo_inicial"]) ? (float) $_POST["saldo_inicial"] : 0;
+        $otpConfirm = isset($_POST["otp_confirm"]) ? trim($_POST["otp_confirm"]) : "";
 
-        if ($cuenta === "" || $titular === "") {
+        if ($otpConfirm === "") {
+            $error = "Debes ingresar tu codigo OTP para confirmar.";
+        } elseif (!mfa_validate_otp($usuarioSesion, $otpConfirm)['ok']) {
+            $error = "Codigo OTP incorrecto. Operacion cancelada.";
+            registrarAuditoria($conn, $usuarioSesion, 'OTP_INCORRECTO', 'OTP incorrecto al crear cuenta');
+        } elseif ($cuenta === "" || $titular === "") {
             $error = "Completa los datos de la cuenta.";
         } elseif ($saldoInicial < 0) {
             $error = "El saldo inicial no puede ser negativo.";
         } else {
-            $stmt = $conn->prepare("INSERT INTO cuentas_bancarias (cuenta, titular, saldo) VALUES (?, ?, ?)");
-            $stmt->bind_param("ssd", $cuenta, $titular, $saldoInicial);
+            $stmt = $conn->prepare("INSERT INTO cuentas_bancarias (cuenta, titular, saldo, usuario) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssds", $cuenta, $titular, $saldoInicial, $usuarioSesion);
 
             if ($stmt->execute()) {
                 $mensaje = "Cuenta agregada correctamente.";
@@ -63,8 +79,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $destinoId = isset($_POST["destino_id"]) ? (int) $_POST["destino_id"] : 0;
         $monto = isset($_POST["monto"]) ? (float) $_POST["monto"] : 0;
         $concepto = isset($_POST["concepto"]) ? trim($_POST["concepto"]) : "Transferencia interna";
+        $otpConfirm = isset($_POST["otp_confirm"]) ? trim($_POST["otp_confirm"]) : "";
 
-        if ($origenId <= 0 || $destinoId <= 0 || $monto <= 0) {
+        if ($otpConfirm === "") {
+            $error = "Debes ingresar tu codigo OTP para confirmar la transferencia.";
+        } elseif (!mfa_validate_otp($usuarioSesion, $otpConfirm)['ok']) {
+            $error = "Codigo OTP incorrecto. Transferencia cancelada.";
+            registrarAuditoria($conn, $usuarioSesion, 'OTP_INCORRECTO', 'OTP incorrecto al transferir');
+        } elseif ($origenId <= 0 || $destinoId <= 0 || $monto <= 0) {
             $error = "Selecciona cuentas validas e ingresa un monto mayor a cero.";
         } elseif ($origenId === $destinoId) {
             $error = "La cuenta origen y destino deben ser diferentes.";
@@ -73,24 +95,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             try {
                 $saldoOrigen = 0;
-                $qOrigen = $conn->prepare("SELECT saldo FROM cuentas_bancarias WHERE id = ? FOR UPDATE");
-                $qOrigen->bind_param("i", $origenId);
+                $qOrigen = $conn->prepare("SELECT saldo FROM cuentas_bancarias WHERE id = ? AND usuario = ? FOR UPDATE");
+                $qOrigen->bind_param("is", $origenId, $usuarioSesion);
                 $qOrigen->execute();
                 $rOrigen = $qOrigen->get_result();
 
                 if ($rOrigen->num_rows === 0) {
-                    throw new Exception("La cuenta de origen no existe.");
+                    throw new Exception("La cuenta de origen no existe o no te pertenece.");
                 }
 
                 $saldoOrigen = (float) $rOrigen->fetch_assoc()["saldo"];
 
-                $qDestino = $conn->prepare("SELECT id FROM cuentas_bancarias WHERE id = ? FOR UPDATE");
-                $qDestino->bind_param("i", $destinoId);
+                $qDestino = $conn->prepare("SELECT id FROM cuentas_bancarias WHERE id = ? AND usuario = ? FOR UPDATE");
+                $qDestino->bind_param("is", $destinoId, $usuarioSesion);
                 $qDestino->execute();
                 $rDestino = $qDestino->get_result();
 
                 if ($rDestino->num_rows === 0) {
-                    throw new Exception("La cuenta de destino no existe.");
+                    throw new Exception("La cuenta de destino no existe o no te pertenece.");
                 }
 
                 if ($saldoOrigen < $monto) {
@@ -127,9 +149,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 }
 
 $cuentas = [];
-$qCuentas = $conn->query("SELECT id, cuenta, titular, saldo FROM cuentas_bancarias ORDER BY cuenta ASC");
-if ($qCuentas) {
-    while ($row = $qCuentas->fetch_assoc()) {
+$qCuentas = $conn->prepare("SELECT id, cuenta, titular, saldo FROM cuentas_bancarias WHERE usuario = ? ORDER BY cuenta ASC");
+$qCuentas->bind_param("s", $usuarioSesion);
+$qCuentas->execute();
+$rCuentas = $qCuentas->get_result();
+if ($rCuentas) {
+    while ($row = $rCuentas->fetch_assoc()) {
         $cuentas[] = $row;
     }
 }
@@ -141,12 +166,25 @@ $sqlHistorial = "SELECT t.id, t.monto, t.concepto, t.usuario_sistema, t.created_
                 FROM transferencias t
                 INNER JOIN cuentas_bancarias co ON t.cuenta_origen_id = co.id
                 INNER JOIN cuentas_bancarias cd ON t.cuenta_destino_id = cd.id
+                WHERE t.usuario_sistema = ?
                 ORDER BY t.id DESC
                 LIMIT 100";
-$qHistorial = $conn->query($sqlHistorial);
+$stmtHist = $conn->prepare($sqlHistorial);
+$stmtHist->bind_param("s", $usuarioSesion);
+$stmtHist->execute();
+$qHistorial = $stmtHist->get_result();
 if ($qHistorial) {
     while ($row = $qHistorial->fetch_assoc()) {
         $historial[] = $row;
+    }
+}
+
+// Cargar usuarios del sistema para el select de titular.
+$usuariosSistema = [];
+$qUsuarios = $conn->query("SELECT usuario FROM usuarios ORDER BY usuario ASC");
+if ($qUsuarios) {
+    while ($row = $qUsuarios->fetch_assoc()) {
+        $usuariosSistema[] = $row['usuario'];
     }
 }
 ?>
@@ -308,7 +346,14 @@ if ($qHistorial) {
                 </div>
                 <div>
                     <label for="titular">Titular</label>
-                    <input id="titular" name="titular" required>
+                    <select id="titular" name="titular" required>
+                        <option value="">Selecciona un usuario</option>
+                        <?php foreach ($usuariosSistema as $uSist): ?>
+                            <option value="<?php echo htmlspecialchars($uSist, ENT_QUOTES, 'UTF-8'); ?>">
+                                <?php echo htmlspecialchars($uSist, ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div>
                     <label for="saldo_inicial">Saldo inicial</label>
@@ -316,7 +361,7 @@ if ($qHistorial) {
                 </div>
             </div>
             <div class="top-links">
-                <button class="btn" type="submit">Crear cuenta</button>
+                <button class="btn btn-otp-action" type="button" data-accion="crear_cuenta">🔒 Crear cuenta</button>
             </div>
         </form>
     </section>
@@ -362,7 +407,7 @@ if ($qHistorial) {
                     </div>
                 </div>
                 <div class="top-links">
-                    <button class="btn" type="submit">Transferir</button>
+                    <button class="btn btn-otp-action" type="button" data-accion="transferir" style="background:linear-gradient(135deg,#f59e0b,#d97706);">🔒 Transferir</button>
                 </div>
             </form>
         <?php endif; ?>
@@ -430,5 +475,133 @@ if ($qHistorial) {
         <?php endif; ?>
     </section>
 </div>
+
+<!-- Modal OTP para confirmar acciones -->
+<div class="modal-overlay" id="modalOTP" role="dialog" aria-modal="true">
+    <div class="modal-box">
+        <div class="modal-icon">🔒</div>
+        <div class="modal-title" id="modalOTPTitle">Verificación OTP requerida</div>
+        <div class="modal-desc" id="modalOTPDesc">Ingresa tu código OTP para confirmar esta acción.</div>
+        <div style="margin:16px 0;">
+            <label for="modalOTPInput" style="font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">Código OTP (6 dígitos)</label>
+            <input type="text" id="modalOTPInput" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456" autocomplete="off" style="text-align:center;letter-spacing:0.4em;font-weight:700;font-size:1.2rem;">
+        </div>
+        <div id="modalOTPError" style="display:none;background:var(--err-bg);color:var(--err-text);padding:8px 12px;border-radius:10px;font-size:0.85rem;margin-bottom:12px;text-align:center;"></div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="cerrarModalOTP()">Cancelar</button>
+            <button class="modal-confirm" onclick="confirmarModalOTP()">🔑 Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position:fixed;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+        display:flex;align-items:center;justify-content:center;z-index:9999;
+        opacity:0;pointer-events:none;transition:opacity 0.25s ease;
+    }
+    .modal-overlay.active { opacity:1;pointer-events:all; }
+    .modal-box {
+        background:#fff;border-radius:22px;padding:32px 28px 24px;max-width:400px;width:90%;
+        box-shadow:0 24px 60px rgba(0,0,0,0.2);
+        transform:scale(0.88) translateY(20px);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease;opacity:0;
+    }
+    .modal-overlay.active .modal-box { transform:scale(1) translateY(0);opacity:1; }
+    .modal-icon {
+        width:56px;height:56px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;
+        display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin:0 auto 16px;
+    }
+    .modal-title { font-size:1.15rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:8px; }
+    .modal-desc { font-size:0.9rem;color:var(--muted);text-align:center;margin-bottom:16px;line-height:1.5; }
+    .modal-actions { display:flex;gap:10px;justify-content:flex-end; }
+    .modal-cancel {
+        background:#f1f5f9;color:var(--text);border:none;border-radius:10px;padding:10px 20px;
+        font-weight:600;font-size:0.9rem;font-family:inherit;cursor:pointer;transition:background 0.15s;
+    }
+    .modal-cancel:hover { background:#e2e8f0; }
+    .modal-confirm {
+        background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:10px;
+        padding:10px 22px;font-weight:700;font-size:0.9rem;font-family:inherit;cursor:pointer;
+        transition:opacity 0.15s,transform 0.15s;
+    }
+    .modal-confirm:hover { opacity:0.9;transform:translateY(-1px); }
+</style>
+
+<script>
+    let _pendingFormOTP = null;
+
+    function abrirModalOTP(form, accion) {
+        _pendingFormOTP = form;
+        var desc = document.getElementById('modalOTPDesc');
+        var input = document.getElementById('modalOTPInput');
+        var errDiv = document.getElementById('modalOTPError');
+        errDiv.style.display = 'none';
+        input.style.borderColor = 'var(--border)';
+        input.value = '';
+
+        if (accion === 'transferir') {
+            document.getElementById('modalOTPTitle').textContent = 'Confirmar transferencia';
+            desc.textContent = 'Ingresa tu código OTP para autorizar esta transferencia:';
+        } else {
+            document.getElementById('modalOTPTitle').textContent = 'Confirmar creación de cuenta';
+            desc.textContent = 'Ingresa tu código OTP para crear la cuenta bancaria:';
+        }
+
+        document.getElementById('modalOTP').classList.add('active');
+        setTimeout(function() { input.focus(); }, 150);
+    }
+
+    function cerrarModalOTP() {
+        document.getElementById('modalOTP').classList.remove('active');
+        _pendingFormOTP = null;
+    }
+
+    function confirmarModalOTP() {
+        var input = document.getElementById('modalOTPInput');
+        var otp = input.value.trim();
+        var errDiv = document.getElementById('modalOTPError');
+
+        if (otp === '' || !/^\d{6}$/.test(otp)) {
+            input.style.borderColor = '#ef4444';
+            errDiv.textContent = 'Ingresa un código válido de 6 dígitos.';
+            errDiv.style.display = 'block';
+            input.focus();
+            return;
+        }
+
+        if (_pendingFormOTP) {
+            var otpField = _pendingFormOTP.querySelector('input[name="otp_confirm"]');
+            if (!otpField) {
+                otpField = document.createElement('input');
+                otpField.type = 'hidden';
+                otpField.name = 'otp_confirm';
+                _pendingFormOTP.appendChild(otpField);
+            }
+            otpField.value = otp;
+            _pendingFormOTP.submit();
+        }
+        cerrarModalOTP();
+    }
+
+    // Conectar botones
+    document.querySelectorAll('.btn-otp-action').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var form = this.closest('form');
+            var accion = this.getAttribute('data-accion');
+            abrirModalOTP(form, accion);
+        });
+    });
+
+    // Cerrar con click fuera o Escape
+    document.getElementById('modalOTP').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModalOTP();
+    });
+    document.getElementById('modalOTPInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); confirmarModalOTP(); }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cerrarModalOTP();
+    });
+</script>
 </body>
 </html>

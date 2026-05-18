@@ -132,6 +132,10 @@
     <p class="subtitle" style="margin-top:16px; margin-bottom:0;">
         Si es tu primer acceso, despues de validar usuario y contrasena podras crear el QR en la pantalla de configuracion OTP.
     </p>
+
+    <p class="subtitle" style="margin-top:12px; margin-bottom:0;">
+        ¿No tienes cuenta? <a href="registro.php" style="color: var(--accent); font-weight: 700; text-decoration: none;">Regístrate aquí</a>
+    </p>
 </main>
 
 </body>
